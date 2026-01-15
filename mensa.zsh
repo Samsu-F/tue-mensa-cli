@@ -165,9 +165,10 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
                 print "\n \033[1mPrinz Karl\033[0m"
                 cat "${file_prinzkarl}.tmp"
                 rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp" "${file_prinzkarl}.tmp"
-            ) > "${file_final_tables}"
+            ) | mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
-        cat "${file_final_tables}" | mensa_display "${mensa_date}"
+
+        cat "${file_final_tables}" | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
     }
 
 
@@ -226,8 +227,7 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
         | mensa_highlight " .*${mensa_date_formatted}.* " "${mensa_highlight_color_today}" \
         | mensa_highlight '[═├┼┤│─╤╧╪╒╕╞╡╘╛]+' "${mensa_highlight_color_grid}" \
         | mensa_highlight "${regex_good}" "${mensa_highlight_color_good}" \
-        | mensa_highlight "${regex_bad}" "${mensa_highlight_color_bad}" \
-        | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
+        | mensa_highlight "${regex_bad}" "${mensa_highlight_color_bad}"
     }
 
 
