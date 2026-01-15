@@ -153,12 +153,18 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
                     wait
                 fi
 
+                mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
+                mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
+                mensa_json_to_table "623" "${mensa_date}" "${filters[@]}" <"${file_prinzkarl}"      >"${file_prinzkarl}.tmp" &
+                wait
+
                 print " \033[1mMorgenstelle\033[0m"
-                cat "${file_morgenstelle}" | mensa_json_to_table "621" "${mensa_date}" "${filters[@]}"
+                cat "${file_morgenstelle}.tmp"
                 print "\n \033[1mWilhelmstraße\033[0m"
-                cat "${file_wilhelmstrasse}" | mensa_json_to_table "611" "${mensa_date}" "${filters[@]}"
+                cat "${file_wilhelmstrasse}.tmp"
                 print "\n \033[1mPrinz Karl\033[0m"
-                cat "${file_prinzkarl}" | mensa_json_to_table "623" "${mensa_date}" "${filters[@]}"
+                cat "${file_prinzkarl}.tmp"
+                rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp" "${file_prinzkarl}.tmp"
             ) > "${file_final_tables}"
         fi
         cat "${file_final_tables}" | mensa_display "${mensa_date}"
