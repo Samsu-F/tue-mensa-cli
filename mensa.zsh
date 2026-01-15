@@ -1,24 +1,33 @@
 # shellcheck disable=SC2148 # unknown shell warning
 # shellcheck disable=SC2296 # works in zsh
 
-# Written for zsh by Samsu-F.
+# Written by Samsu-F.
 # https://github.com/Samsu-F/tue-mensa-cli
 
 
 # Usage:
 # `mensa [regex filters [...]]`
-# outputs the dishes that match all filters.
-# Filters are regular expressions matched against the concatenation of all fields (separator='|'').
-# Filters are case insensitive by default but
-# are case sensitive if they contain at least one uppercase character.
-# examples: `mensa vegan 3,70` will show all vegan dishes that cost 3,70€.
+# Outputs all dishes that match all filters.
+# - Filters are regular expressions matched against the concatenation of all fields (`|` as separator).
+# - Filters are case-insensitive by default.
+# - If a filter contains at least one uppercase character, it becomes case-sensitive.
+# Examples:
+# - `mensa` will show the full meal plan.
+# - `mensa vegan 3,70` will show all vegan dishes that cost 3,70€.
+# - `mensa '^([^\[]|\[[^S]+\])*$' salat` will show all meals that are not tagged as containing pork, and also include any type of salad.
 
 # Installation:
-# Save this file anywhere and just source it in your .zshrc
+# Save this file anywhere and just source it in your ~/.zshrc like this:
+# ```
+# source /path/to/mensa.zsh
+# ```
+# Then restart your shell or run `source ~/.zshrc`.
 
 # Dependencies:
 #   - jtbl (https://github.com/kellyjonbrazil/jtbl)
 #   - jq (may be preinstalled on your system) (https://github.com/jqlang/jq)
+#   - curl
+#   - coreutils
 
 
 
@@ -86,6 +95,13 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
         printf "\033[1;31mtue-mensa-cli: Error: tue-mensa-cli must be sourced in zsh.\033[0m\n" >&2
         return 1
     fi
+
+    for cmd in jq jtbl curl grep sed awk; do
+        if ! command -pv "${cmd}" &>/dev/null; then
+            printf "\033[1;31mtue-mensa-cli: Error: missing dependency '%s'.\033[0m\n" "${cmd}" >&2
+            return 1
+        fi
+    done
 
     # mensa_file_mtime: a function to get the modification timestamp of a file
     case "$(uname)" in

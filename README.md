@@ -17,7 +17,7 @@ Outputs all dishes that match all filters.
 Examples:
 - `mensa` will show the full meal plan.
 - `mensa vegan 3,70` will show all vegan dishes that cost 3,70€.
-- `mensa '^([^\[]|\[[^S]+\])*$' salat` will show all meals not tagged as containing pork, and also include any type of salad.
+- `mensa '^([^\[]|\[[^S]+\])*$' salat` will show all meals that are not tagged as containing pork, and also include any type of salad.
 
 
 ## Installation
