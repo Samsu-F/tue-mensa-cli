@@ -62,6 +62,9 @@ export mensa_date_format_string='%a %d.%m.' # see `man strftime` for a list of s
 
 export mensa_curry_to_haskell_easteregg=true
 
+# Makes the heading of each table a clickable link. Disable if your terminal does not support this.
+export mensa_clickable_links=true
+
 export mensa_cache_time_to_live='600' # time in seconds that cached results are valid for
 
 alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
@@ -125,7 +128,7 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
     function mensa()
     {
         emulate -L zsh; setopt localoptions no_unset # for reliability independent of which options are set
-        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated
+        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated heading_morgenstelle heading_wilhelmstrasse heading_prinzkarl
         filters=("$@")
         mensa_dir='/tmp/tue-mensa-cli'
         mkdir -p "${mensa_dir}"
@@ -158,11 +161,20 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
                 mensa_json_to_table "623" "${mensa_date}" "${filters[@]}" <"${file_prinzkarl}"      >"${file_prinzkarl}.tmp" &
                 wait
 
-                print " \033[1mMorgenstelle\033[0m"
+                if [ "${mensa_clickable_links}" = "true" ]; then
+                    heading_morgenstelle="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/\033\\\\Morgenstelle\033]8;;\033\\\\\033[0m"
+                    heading_wilhelmstrasse="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-wilhelmstrasse-tuebingen/\033\\\\Wilhelmstraße\033]8;;\033\\\\\033[0m"
+                    heading_prinzkarl="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-prinz-karl-tuebingen/\033\\\\Prinz Karl\033]8;;\033\\\\\033[0m"
+                else
+                    heading_morgenstelle="\033[1mMorgenstelle\033[0m"
+                    heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
+                    heading_prinzkarl="\033[1mPrinz Karl\033[0m"
+                fi
+                print " ${heading_morgenstelle}"
                 cat "${file_morgenstelle}.tmp"
-                print "\n \033[1mWilhelmstraße\033[0m"
+                print "\n ${heading_wilhelmstrasse}"
                 cat "${file_wilhelmstrasse}.tmp"
-                print "\n \033[1mPrinz Karl\033[0m"
+                print "\n ${heading_prinzkarl}"
                 cat "${file_prinzkarl}.tmp"
                 rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp" "${file_prinzkarl}.tmp"
             ) | mensa_display "${mensa_date}" > "${file_final_tables}"
