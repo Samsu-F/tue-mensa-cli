@@ -45,18 +45,27 @@ export mensa_highlight_color_today="22;97"  # 97 = intense white
 # the neutral text color:
 export mensa_base_color="22;39" # 39 = default text color of your terminal
 
-# regex patterns you want to highlight as dishes you know you like:
-export mensa_patterns_good=( # literal forward slashes must be escaped
-    'Hack.?([Bb]äll[a-z]+|[Rr]olle)' # matches 'Hackbällchen', 'Hack-Bälle', 'Hack Rolle', ...
+# regex patterns you want to highlight as dishes you know you like.
+# WARNING: literal forward slashes must be escaped!
+export mensa_patterns_good=(
+    'Hack.?([Bb]äll[a-z]+|[Rr]olle)'    # matches 'Hackbällchen', 'Hack-Bälle', 'Hack Rolle', ...
     '([Ff]rikadelle.*[Vv]egan\]?)|([Vv]egan.*[Ff]rikadelle)'
-    '([Tt]s|[Tt]z|[Zz])a(ts|tz|z)iki' # Tzatziki in all spellings imaginable
-    '[A-Za-z]*[Dd]ip\b'             # controversial, I know
-    '((Soja.)?|[A-Za-z]*)[Gg]yros' # 'Soja-Gyros', 'Pfannengyros', ...
+    '([Tt]s|[Tt]z|[Zz])a(ts|tz|z)iki'   # Tzatziki in all spellings imaginable
+    '[A-Za-z]*[Dd]ip\b'                 # controversial, I know
+    '((Soja.)?|[A-Za-z]*)[Gg]yros'      # 'Soja-Gyros', 'Pfannengyros', ...
+    '\[[Tt]op\]'
+    '[Rr]ote.?[Bb]ete.?[Pp]uffer'
 )
+
 # regex patterns you want to highlight as dishes you know you dislike:
+# WARNING: literal forward slashes must be escaped!
 export mensa_patterns_bad=(
     'Sesam.?[Kk]arotten.?[Ss]tick'
+    '\[[SRFGLKW\/]\]'                   # tags for all kinds of meat
 )
+
+alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
+                            # Evaluated at runtime.
 
 export mensa_date_format_string='%a %d.%m.' # see `man strftime` for a list of specifiers
 
@@ -67,8 +76,23 @@ export mensa_clickable_links=true
 
 export mensa_cache_time_to_live='600' # time in seconds that cached results are valid for
 
-alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
-                            # Evaluated at runtime.
+# The columns that will be removed before applying the argument filters. Comment out the columns
+# that you want to see.
+export mensa_excluded_columns=(
+    'id'
+    # 'menuLine'
+    # 'studentPrice'
+    'guestPrice'
+    'pupilPrice'
+    # 'menuDate'
+    # 'menu'
+    'meats'
+    'icons'
+    'filtersInclude'
+    'allergens'
+    'additives'
+    # 'co2'
+)
 
 # Samsu's recommendation:
 # alias m='mensa vegan'
@@ -203,8 +227,11 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
             fi
         done
 
+        local jq_del_columns=${(j:,:)mensa_excluded_columns/#/.}    # this expansion must not be quoted!
+        if [ -n "${jq_del_columns}" ]; then jq_del_columns="| del(${jq_del_columns})"; else jq_del_columns=""; fi
+
         jq -r "[ .\"${mensa_id}\".menus[] \
-                    | del(.photo,.guestPrice,.pupilPrice,.allergens,.meats,.additives,.id) \
+                    | del(.photo) \
                     | select(.menuDate >= \"${mensa_date}\") \
                     | select(.menuLine != \"Salat-/ Gemüsebuffet 100g\") \
                     | select(.menuLine != \"Beilagen vorport.\") \
@@ -213,13 +240,17 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
                     | select(.menu != \"Dessertauswahltheke\") \
                     | select(.menu != \"Beilagenbuffet MM\") \
                     | .icons=(.icons | join(\", \")) \
+                    | .filtersInclude=(.filtersInclude | join(\", \")) \
+                    | .meats=(.meats | join(\", \")) \
+                    | .allergens=(.allergens | join(\", \")) \
+                    | .additives=(.additives | join(\", \")) \
                 ] \
                 | sort_by(.menuDate) \
                 | \
                 [ .[] \
                     | .menuDate |= (strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\")) \
+                    ${jq_del_columns} \
                     ${jq_filters} \
-                    | del(.filtersInclude) \
                 ]" \
             | if [ "${mensa_curry_to_haskell_easteregg}" = "true" ]; then sed 's/curry/haskell/g' | sed 's/Curry/Haskell/g'; else cat - ; fi \
             | jtbl -f --cols="$(tput cols)"
