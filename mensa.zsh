@@ -266,7 +266,7 @@ export mensa_excluded_columns=(
         mensa_date_iso="$1"
         # use jq to format to ensure the formatting is the same as in the table
         mensa_date_formatted="$(printf '%s' "${mensa_date_iso}" | jq -Rr "strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\")" )"
-        sed -E "s/^/$(printf '\033')[${mensa_base_color}m/" \
+        sed -E "s/^.*$/$(printf '\033')[${mensa_base_color}m&$(printf '\033')[0m/" \
         | mensa_highlight " .*${mensa_date_formatted}.* " "${mensa_highlight_color_today}" \
         | mensa_highlight '[═├┼┤│─╤╧╪╒╕╞╡╘╛]+' "${mensa_highlight_color_grid}" \
         | mensa_highlight "${regex_good}" "${mensa_highlight_color_good}" \
