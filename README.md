@@ -13,11 +13,17 @@ Outputs all dishes that match all filters.
 - Filters are regular expressions matched against the concatenation of all fields (`|` as separator).
 - Filters are case-insensitive by default.
 - If a filter contains at least one uppercase character, it becomes case-sensitive.
+- By default, filters are treated as *positive (inclusive) filters*, meaning that only dishes that
+  match the regular expression are kept.
+- A filter starting with a minus (`-`) is treated as a *negative (exclusive) filter*. The leading minus is
+  removed, and only dishes that do *not* match the remaining regular expression are kept.
+  To use a *positive* filter whose regular expression itself begins with a literal minus, escape the minus
+  using a backslash (for example: `'\-foo'`).
 
 Examples:
 - `mensa` will show the full meal plan.
 - `mensa vegan 3,70` will show all vegan dishes that cost 3,70€.
-- `mensa '^([^\[]|\[[^S]+\])*$' salat` will show all meals that are not tagged as containing pork, and also include any type of salad.
+- `mensa '-\[[^\]]*S.*\]' salat` will show all meals that are not tagged as containing pork, and also include any type of salad.
 
 
 ## Installation

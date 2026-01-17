@@ -11,10 +11,16 @@
 # - Filters are regular expressions matched against the concatenation of all fields (`|` as separator).
 # - Filters are case-insensitive by default.
 # - If a filter contains at least one uppercase character, it becomes case-sensitive.
+# - By default, filters are treated as positive (inclusive) filters, meaning that only dishes that
+#   match the regular expression are kept.
+# - A filter starting with a minus (`-`) is treated as a negative (exclusive) filter. The leading minus is
+#   removed, and only dishes that do *not* match the remaining regular expression are kept.
+#   To use a *positive* filter whose regular expression itself begins with a literal minus, escape the minus
+#   using a backslash (for example: `'\-foo'`).
 # Examples:
 # - `mensa` will show the full meal plan.
 # - `mensa vegan 3,70` will show all vegan dishes that cost 3,70€.
-# - `mensa '^([^\[]|\[[^S]+\])*$' salat` will show all meals that are not tagged as containing pork, and also include any type of salad.
+# - `mensa '-\[[^\]]*S.*\]' salat` will show all meals that are not tagged as containing pork, and also include any type of salad.
 
 # Installation:
 # Save this file anywhere and just source it in your ~/.zshrc like this:
@@ -254,16 +260,19 @@ export mensa_excluded_columns=(
         shift 2
         local filters=("$@")
         local jq_filters=""
-        local item
-        for item in "${filters[@]}"; do
-            item="$(printf '%s' "${item}" | sed -E 's/\\/\\\\/g')" # jq needs escaped backslashes
-            if printf '%s\n' "${item}" | grep -qE '[[:upper:]]'; then
-                # case sensitive regex if pattern filter contains uppercase characters
-                jq_filters="${jq_filters} | select([.. | scalars | tostring] | join(\"|\") | test(\"${item}\")) "
-            else
-                # default: case insensitive filtering
-                jq_filters="${jq_filters} | select([.. | scalars | tostring] | join(\"|\") | ascii_downcase | test(\"${item}\")) "
+        local fil
+        for fil in "${filters[@]}"; do
+            fil="$(printf '%s' "${fil}" | sed -E 's/\\/\\\\/g')" # jq needs escaped backslashes
+            local optional_not=''
+            if [[ "${fil:0:1}" == "-" ]]; then
+                fil="${fil:1}" # Remove the first character (the minus)
+                optional_not='| not'
             fi
+            local optional_downcase='| ascii_downcase'   # default: case insensitive filtering
+            if printf '%s\n' "${fil}" | grep -qE '[[:upper:]]'; then
+                optional_downcase='' # case sensitive regex if filter contains uppercase characters
+            fi
+            jq_filters+=" | select([.. | scalars | tostring] | join(\"|\") ${optional_downcase} | test(\"${fil}\") ${optional_not}) "
         done
 
         local jq_del_columns=${(j:,:)mensa_excluded_columns/#/.}    # this expansion must not be quoted!
