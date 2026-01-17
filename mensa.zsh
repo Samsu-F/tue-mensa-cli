@@ -61,7 +61,7 @@ export mensa_patterns_good=(
 # WARNING: literal forward slashes must be escaped!
 export mensa_patterns_bad=(
     'Sesam.?[Kk]arotten.?[Ss]tick'
-    '\[[SRFGLKW\/]\]'                   # tags for all kinds of meat
+    '\[[SRFGLKW\/]+\]'                  # tags for all kinds of meat
 )
 
 alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
@@ -124,7 +124,7 @@ export mensa_excluded_columns=(
     fi
 
     local cmd
-    for cmd in jq jtbl curl grep sed awk; do
+    for cmd in jq jtbl curl grep sed awk openssl; do
         if ! command -pv "${cmd}" &>/dev/null; then
             printf "\033[1;31mtue-mensa-cli: Error: missing dependency '%s'.\033[0m\n" "${cmd}" >&2
             return 1
@@ -155,6 +155,9 @@ export mensa_excluded_columns=(
         emulate -L zsh; setopt localoptions no_unset # for reliability independent of which options are set
         local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated heading_morgenstelle heading_wilhelmstrasse heading_prinzkarl
         filters=("$@")
+
+        # By setting a path here, you grant this function absolute freedom to create, edit, and delete any file in this directory and the directory itself.
+        # ==> Do not set it to a directory shared with any other application or a directory containing files you wish to keep.
         mensa_dir='/tmp/tue-mensa-cli'
         mkdir -p "${mensa_dir}"
 
@@ -175,9 +178,16 @@ export mensa_excluded_columns=(
                     curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621" > "${file_morgenstelle}" &
                     curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611" > "${file_wilhelmstrasse}" &
                     curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/623" > "${file_prinzkarl}" &
+
+                    # It is an intentional choice to not use a variable containing the filename prefix in the following glob, to ensure we
+                    # never run 'rm /*' or something similarly bad, even if something went wrong and the variables contain the empty string.
+                    local mensa_invalid_cache_files=( "${mensa_dir}/final_tables_"*(N) )
+                    (( ${#mensa_invalid_cache_files} )) && rm --one-file-system "${mensa_invalid_cache_files[@]}"
+
                     wait
                 fi
-
+            )
+            {
                 mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
                 mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
                 mensa_json_to_table "623" "${mensa_date}" "${filters[@]}" <"${file_prinzkarl}"      >"${file_prinzkarl}.tmp" &
@@ -199,7 +209,7 @@ export mensa_excluded_columns=(
                 print "\n ${heading_prinzkarl}"
                 cat "${file_prinzkarl}.tmp"
                 rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp" "${file_prinzkarl}.tmp"
-            ) | mensa_display "${mensa_date}" > "${file_final_tables}"
+            } | mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
 
         cat "${file_final_tables}" | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
