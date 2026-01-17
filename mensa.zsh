@@ -123,6 +123,7 @@ export mensa_excluded_columns=(
         return 1
     fi
 
+    local cmd
     for cmd in jq jtbl curl grep sed awk; do
         if ! command -pv "${cmd}" &>/dev/null; then
             printf "\033[1;31mtue-mensa-cli: Error: missing dependency '%s'.\033[0m\n" "${cmd}" >&2
@@ -133,17 +134,17 @@ export mensa_excluded_columns=(
     # mensa_file_mtime: a function to get the modification timestamp of a file
     case "$(uname)" in
         Linux)
-            mensa_file_mtime() { stat -c %Y "$1"; }
-            mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
+            function mensa_file_mtime() { stat -c %Y "$1"; }
+            function mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
         Darwin|FreeBSD|OpenBSD|NetBSD|DragonFly)
-            mensa_file_mtime() { stat -f %m "$1"; }
-            mensa_date_tomorrow() { date -v+1d '+%Y-%m-%d'; }
+            function mensa_file_mtime() { stat -f %m "$1"; }
+            function mensa_date_tomorrow() { date -v+1d '+%Y-%m-%d'; }
             ;;
         *)
             printf "\033[1;33mtue-mensa-cli: Warning: Unsupported OS '%s'. Defaulting to assuming GNU coreutils are available.\033[0m\n" "$(uname)" >&2
-            mensa_file_mtime() { stat -c %Y "$1"; }
-            mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
+            function mensa_file_mtime() { stat -c %Y "$1"; }
+            function mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
     esac
 
@@ -159,11 +160,8 @@ export mensa_excluded_columns=(
 
         mensa_date="$(date '+%Y-%m-%d')"
         if [ "$(date '+%H%M')" -gt "1400" ]; then mensa_date="$(mensa_date_tomorrow)"; fi
-        filters_concatenated="${(j:\037:)filters}" # may only used to hash or base64 encode to get a uniq file suffix
-        file_suffix="$(echo "${filters_concatenated}" | base64)"
-        if [ "$(printf '%s' "${file_suffix}" | wc -c)" -gt 70 ]; then file_suffix="#$(echo "${filters_concatenated}" | sha256sum | cut -f1 -d' ')"; fi
-        file_final_tables="${mensa_dir}/final_tables_${mensa_date}_$(tput cols)cols_${file_suffix}"
 
+        file_final_tables="${mensa_dir}/final_tables_$(mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
         local file_morgenstelle="${mensa_dir}/json_morgenstelle_${mensa_date}"
         local file_wilhelmstrasse="${mensa_dir}/json_wilhelmstrasse_${mensa_date}"
         local file_prinzkarl="${mensa_dir}/json_prinzkarl_${mensa_date}"
@@ -209,6 +207,36 @@ export mensa_excluded_columns=(
 
 
 
+    # generates a hash based on everything that affects the final tables, to be used like a unique id in the cache
+    function mensa_generate_file_suffix() {
+        local values=("$@")
+        local unit_sep="$(printf '\037')"
+        local record_sep="$(printf '\036')"
+        values+=(   # add everything that affects the content of the final table file
+            "$(tput cols)"
+            "${mensa_highlight_color_good}"
+            "${mensa_highlight_color_bad}"
+            "${mensa_highlight_color_grid}"
+            "${mensa_highlight_color_today}"
+            "${mensa_base_color}"
+            "${mensa_date_format_string}"
+            "${mensa_curry_to_haskell_easteregg}"
+            "${mensa_clickable_links}"
+            # use a Record Separator ASCII character to mark border between arrays
+            "${record_sep}${mensa_patterns_good[@]}"
+            "${record_sep}${mensa_patterns_bad[@]}"
+            "${record_sep}${mensa_excluded_columns[@]}"
+        )
+        local values_concatenated=''
+        local val
+        for val in "${values[@]}"; do
+            values_concatenated+="${unit_sep}${val}"
+        done
+        printf '%s' "${values_concatenated}" | openssl dgst -sha256 | awk '{print $NF}'
+    }
+
+
+
     function mensa_json_to_table()
     {
         local mensa_id="$1"
@@ -216,6 +244,7 @@ export mensa_excluded_columns=(
         shift 2
         local filters=("$@")
         local jq_filters=""
+        local item
         for item in "${filters[@]}"; do
             item="$(printf '%s' "${item}" | sed -E 's/\\/\\\\/g')" # jq needs escaped backslashes
             if printf '%s\n' "${item}" | grep -qE '[[:upper:]]'; then
