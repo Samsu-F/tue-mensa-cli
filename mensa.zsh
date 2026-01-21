@@ -41,19 +41,19 @@
 ############################################## CONFIG ##############################################
 
 # the color in which you want your favourite dishes highlighted:
-export mensa_highlight_color_good="22;1;32" # 22 = bold off & faint off; 1 = bold; 32 = green
+mensa_highlight_color_good="22;1;32" # 22 = bold off & faint off; 1 = bold; 32 = green
 # the color in which you want your bad dishes highlighted:
-export mensa_highlight_color_bad="22;91" # 91 = intense red
+mensa_highlight_color_bad="22;91" # 91 = intense red
 # the color of the grid:
-export mensa_highlight_color_grid="22;2;37" # 2 = faint; 37 = white (==> gray)
+mensa_highlight_color_grid="22;2;37" # 2 = faint; 37 = white (==> gray)
 # the color in which you want todays dishes highlighted:
-export mensa_highlight_color_today="22;97"  # 97 = intense white
+mensa_highlight_color_today="22;97"  # 97 = intense white
 # the neutral text color:
-export mensa_base_color="22;39" # 39 = default text color of your terminal
+mensa_base_color="22;39" # 39 = default text color of your terminal
 
 # regex patterns you want to highlight as dishes you know you like.
 # WARNING: literal forward slashes must be escaped!
-export mensa_patterns_good=(
+mensa_patterns_good=(
     'Hack.?([Bb]äll[a-z]+|[Rr]olle)'    # matches 'Hackbällchen', 'Hack-Bälle', 'Hack Rolle', ...
     '([Ff]rikadelle.*[Vv]egan\]?)|([Vv]egan.*[Ff]rikadelle)'
     '([Tt]s|[Tt]z|[Zz])a(ts|tz|z)iki'   # Tzatziki in all spellings imaginable
@@ -65,7 +65,7 @@ export mensa_patterns_good=(
 
 # regex patterns you want to highlight as dishes you know you dislike:
 # WARNING: literal forward slashes must be escaped!
-export mensa_patterns_bad=(
+mensa_patterns_bad=(
     'Sesam.?[Kk]arotten.?[Ss]tick'
     '[A-Za-z\-]*[Kk]nusperbagel'
     '\[[SRFGLKW\/]+\]'                  # tags for all kinds of meat
@@ -75,20 +75,20 @@ export mensa_patterns_bad=(
 alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
                             # Evaluated at runtime.
 
-export mensa_date_format_string='%a %d.%m.' # see `man strftime` for a list of specifiers
+mensa_date_format_string='%a %d.%m.' # see `man strftime` for a list of specifiers
 
-export mensa_curry_to_haskell_easteregg=true
+mensa_curry_to_haskell_easteregg=true
 
 # Makes the heading of each table a clickable link. Disable if your terminal does not support this.
-export mensa_clickable_links=true
+mensa_clickable_links=true
 
-export mensa_cache_time_to_live='600' # time in seconds that cached results are valid for
+mensa_cache_time_to_live='600' # time in seconds that cached results are valid for
 
 # Columns to display from the menu data. Only listed columns are shown and used for argument
 # filtering. Comment out to hide a column or reorder lines to change the display order.
 # Columns can be renamed using the syntax '"newName":.oldName'.
 # Set this to an empty array to show all columns.
-export mensa_columns=(
+mensa_columns=(
     # id
     menuLine
     studentPrice
