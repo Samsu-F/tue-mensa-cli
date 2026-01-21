@@ -67,7 +67,9 @@ export mensa_patterns_good=(
 # WARNING: literal forward slashes must be escaped!
 export mensa_patterns_bad=(
     'Sesam.?[Kk]arotten.?[Ss]tick'
+    '[A-Za-z\-]*[Kk]nusperbagel'
     '\[[SRFGLKW\/]+\]'                  # tags for all kinds of meat
+    '[Vv]eget(arische?[rs]?)?'
 )
 
 alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
@@ -82,22 +84,28 @@ export mensa_clickable_links=true
 
 export mensa_cache_time_to_live='600' # time in seconds that cached results are valid for
 
-# The columns that will be removed before applying the argument filters. Comment out the columns
-# that you want to see.
-export mensa_excluded_columns=(
-    'id'
-    # 'menuLine'
-    # 'studentPrice'
-    'guestPrice'
-    'pupilPrice'
-    # 'menuDate'
-    # 'menu'
-    'meats'
-    'icons'
-    'filtersInclude'
-    'allergens'
-    'additives'
-    # 'co2'
+# Columns to display from the menu data. Only listed columns are shown and used for argument
+# filtering. Comment out to hide a column or reorder lines to change the display order.
+# Columns can be renamed using the syntax '"newName":.oldName'.
+# Set this to an empty array to show all columns.
+export mensa_columns=(
+    # id
+    menuLine
+    studentPrice
+    # guestPrice
+    # pupilPrice
+    '"date":.menuDate'
+    menu
+    # meats
+    # icons
+    # filtersInclude
+    #  allergens        # ⚠️ WARNING: Allergen and additive info shown here is only a preview.
+                        # Only the daily labels at the Mensa (on-site monitors or notices) are
+                        # official, and even those are not always reliable.
+    # longAllergens
+    # additives
+    # longAdditives
+    co2
 )
 
 # Samsu's recommendation:
@@ -241,7 +249,7 @@ export mensa_excluded_columns=(
             # use a Record Separator ASCII character to mark border between arrays
             "${record_sep}${mensa_patterns_good[@]}"
             "${record_sep}${mensa_patterns_bad[@]}"
-            "${record_sep}${mensa_excluded_columns[@]}"
+            "${record_sep}${mensa_columns[@]}"
         )
         local values_concatenated=''
         local val
@@ -275,30 +283,83 @@ export mensa_excluded_columns=(
             jq_filters+=" | select([.. | scalars | tostring] | join(\"|\") ${optional_downcase} | test(\"${fil}\") ${optional_not}) "
         done
 
-        local jq_del_columns=${(j:,:)mensa_excluded_columns/#/.}    # this expansion must not be quoted!
-        if [ -n "${jq_del_columns}" ]; then jq_del_columns="| del(${jq_del_columns})"; else jq_del_columns=""; fi
+        local jq_column_selection="| { ${(j:, :)mensa_columns} }"
+        if [[ ${#mensa_columns[@]} -eq 0 ]]; then jq_column_selection=""; fi # show every column if mensa_columns is empty
 
-        jq -r "[ .\"${mensa_id}\".menus[] \
-                    | del(.photo) \
-                    | select(.menuDate >= \"${mensa_date}\") \
-                    | select(.menuLine != \"Salat-/ Gemüsebuffet 100g\") \
-                    | select(.menuLine != \"Beilagen vorport.\") \
-                    | .menu=(.menu | join(\", \")) \
-                    | select(.menu != \"Frisches Obst\") \
-                    | select(.menu != \"Dessertauswahltheke\") \
-                    | select(.menu != \"Beilagenbuffet MM\") \
-                    | .icons=(.icons | join(\", \")) \
-                    | .filtersInclude=(.filtersInclude | join(\", \")) \
-                    | .meats=(.meats | join(\", \")) \
-                    | .allergens=(.allergens | join(\", \")) \
-                    | .additives=(.additives | join(\", \")) \
-                ] \
-                | sort_by(.menuDate) \
-                | \
-                [ .[] \
-                    | .menuDate |= (strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\")) \
-                    ${jq_del_columns} \
-                    ${jq_filters} \
+        jq -r 'def allergen_map: {
+                    "Ei": "Ei",
+                    "Er": "Erdnüsse",
+                    "Fi": "Fisch",
+                    "Gl-a": "Gluten (Weizen)",
+                    "Gl-b": "Gluten (Roggen)",
+                    "Gl-c": "Gluten (Gerste)",
+                    "Gl-d": "Gluten (Hafer)",
+                    "Gl-e": "Gluten (Dinkel)",
+                    "Gl-f": "Gluten (Kamut)",
+                    "Gl": "Gluten",
+                    "Kr": "Krebstiere",
+                    "Lu": "Lupine",
+                    "ML": "Milch/Laktose",
+                    "Mu": "Weichtiere",
+                    "Nu-a": "Mandeln",
+                    "Nu-b": "Haselnüsse",
+                    "Nu-c": "Walnüsse",
+                    "Nu-d": "Cashewkerne",
+                    "Nu-e": "Pekannüsse",
+                    "Nu-f": "Paranüsse",
+                    "Nu-g": "Pistazien",
+                    "Nu-h": "Macadamianüsse",
+                    "Nu-i": "Queenslandnüsse",
+                    "Nu": "Schalenfrüchte (Nüsse)",
+                    "Sa":"Sesam",
+                    "Se": "Sellerie",
+                    "Sf": "Schwefeldioxid/Sulfite",
+                    "Sl": "Sesam",
+                    "Sn": "Senf",
+                    "So": "Soja",
+                    "We":"Weichtiere",
+                };
+                def additives_map: {
+                    "1": "Farbstoff",
+                    "2": "Konservierungsstoff",
+                    "3": "Nitritpökelsalz",
+                    "4": "Antioxidationsmittel",
+                    "5": "Geschmacksverstärker",
+                    "6": "geschwefelt",
+                    "7": "geschwärzt",
+                    "8": "gewachst",
+                    "9": "Süßungsmittel",
+                    "10": "enthält eine Phenylalaninquelle",
+                    "11": "Phosphat",
+                };
+                '"
+                [ .\"${mensa_id}\".menus[]
+                    | del(.photo)
+                    | select(.menuDate >= \"${mensa_date}\")
+                    | select(.menuLine != \"Salat-/ Gemüsebuffet 100g\")
+                    | select(.menuLine != \"Beilagen vorport.\")
+                    | .menu=(.menu | join(\", \"))
+                    | select(.menu != \"Frisches Obst\")
+                    | select(.menu != \"Dessertauswahltheke\")
+                    | select(.menu != \"Beilagenbuffet MM\")
+                    | .icons=(.icons | join(\", \"))
+                    | .filtersInclude=(.filtersInclude | join(\", \"))
+                    | .meats=(.meats | join(\", \"))
+                    | .longAllergens = (.allergens | map(allergen_map[.] // .) | join(\", \"))
+                    | .allergens=(.allergens | join(\", \"))
+                    | .longAdditives = (.additives | map(additives_map[.] // .) | join(\", \"))
+                    | .additives=(.additives | join(\", \"))
+                    | .studentPrice += (if (.studentPrice | contains(\",\")) then \" €\" else \"\" end)
+                    | .guestPrice   += (if (.guestPrice   | contains(\",\")) then \" €\" else \"\" end)
+                    | .pupilPrice   += (if (.pupilPrice   | contains(\",\")) then \" €\" else \"\" end)
+
+                ]
+                | sort_by(.menuDate)
+                |
+                [ .[]
+                    | .menuDate |= (strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\"))
+                    ${jq_column_selection}
+                    ${jq_filters}
                 ]" \
             | if [ "${mensa_curry_to_haskell_easteregg}" = "true" ]; then sed 's/curry/haskell/g' | sed 's/Curry/Haskell/g'; else cat - ; fi \
             | jtbl -f --cols="$(tput cols)"
