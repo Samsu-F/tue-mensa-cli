@@ -270,7 +270,7 @@ mensa_columns=(
         local jq_filters=""
         local fil
         for fil in "${filters[@]}"; do
-            fil="$(printf '%s' "${fil}" | sed -E 's/\\/\\\\/g')" # jq needs escaped backslashes
+            fil="$(printf '%s' "${fil}" | sed -E 's/\\|"/\\&/g')" # jq needs escaped backslashes
             local optional_not=''
             if [[ "${fil:0:1}" == "-" ]]; then
                 fil="${fil:1}" # Remove the first character (the minus)
