@@ -82,7 +82,7 @@ mensa_curry_to_haskell_easteregg=true
 # Makes the heading of each table a clickable link. Disable if your terminal does not support this.
 mensa_clickable_links=true
 
-mensa_cache_time_to_live='600' # time in seconds that cached results are valid for
+mensa_cache_time_to_live='1800' # time in seconds that cached results are valid for
 
 # Columns to display from the menu data. Only listed columns are shown and used for argument
 # filtering. Comment out to hide a column or reorder lines to change the display order.
@@ -166,7 +166,7 @@ mensa_columns=(
 
     function mensa()
     {
-        emulate -L zsh; setopt localoptions no_unset # for reliability independent of which options are set
+        emulate -L zsh; setopt localoptions no_unset no_monitor # for reliability independent of which options are set
         local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated heading_morgenstelle heading_wilhelmstrasse
         filters=("$@")
 
@@ -185,20 +185,29 @@ mensa_columns=(
         # if the final file or the json files it is based on do not exist or exceeded time to live
         if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
         || [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
-            (
-                # only use curl if needed (if json files do not exist or are no longer valid)
-                if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
-                    curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621" > "${file_morgenstelle}" &
-                    curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611" > "${file_wilhelmstrasse}" &
-
+            local curl_pid_ms curl_pid_ws curl_success=1
+            # only use curl if needed (if json files do not exist or are no longer valid)
+            if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
+                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621" > "${file_morgenstelle}_curl.tmp"   & curl_pid_ms=$!
+                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611" > "${file_wilhelmstrasse}_curl.tmp" & curl_pid_ws=$!
+                wait $curl_pid_ms || curl_success=0
+                wait $curl_pid_ws || curl_success=0
+                if (( $curl_success )); then
+                    mv "${file_morgenstelle}_curl.tmp" "${file_morgenstelle}"
+                    mv "${file_wilhelmstrasse}_curl.tmp" "${file_wilhelmstrasse}"
                     # It is an intentional choice to not use a variable containing the filename prefix in the following glob, to ensure we
                     # never run 'rm /*' or something similarly bad, even if something went wrong and the variables contain the empty string.
-                    local mensa_invalid_cache_files=( "${mensa_dir}/final_tables_"*(N) )
+                    local -a mensa_invalid_cache_files=( "${mensa_dir}/final_tables_"*(N) )
                     (( ${#mensa_invalid_cache_files} )) && rm --one-file-system "${mensa_invalid_cache_files[@]}"
-
-                    wait
+                else
+                    rm "${file_morgenstelle}_curl.tmp" "${file_wilhelmstrasse}_curl.tmp"
                 fi
-            )
+            fi
+
+            if [ ! -f "${file_morgenstelle}" ]; then
+                printf 'curl failed and there is noch cached data :(\nPlease check your internet connection.\n' >&2
+                return 1
+            fi
             {
                 mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
                 mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
@@ -211,6 +220,7 @@ mensa_columns=(
                     heading_morgenstelle="\033[1mMorgenstelle\033[0m"
                     heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
                 fi
+                (( ! $curl_success )) && print '\033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time.\033[0m\n'
                 print " ${heading_morgenstelle}"
                 cat "${file_morgenstelle}.tmp"
                 print "\n ${heading_wilhelmstrasse}"
