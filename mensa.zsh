@@ -91,7 +91,7 @@ mensa_cache_time_to_live='600' # time in seconds that cached results are valid f
 mensa_columns=(
     # id
     menuLine
-    studentPrice
+    '"price":.studentPrice'
     # guestPrice
     # pupilPrice
     '"date":.menuDate'
@@ -179,8 +179,8 @@ mensa_columns=(
         if [ "$(date '+%H%M')" -gt "1400" ]; then mensa_date="$(mensa_date_tomorrow)"; fi
 
         file_final_tables="${mensa_dir}/final_tables_$(mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
-        local file_morgenstelle="${mensa_dir}/json_morgenstelle_${mensa_date}"
-        local file_wilhelmstrasse="${mensa_dir}/json_wilhelmstrasse_${mensa_date}"
+        local file_morgenstelle="${mensa_dir}/morgenstelle.json"
+        local file_wilhelmstrasse="${mensa_dir}/wilhelmstrasse.json"
 
         # if the final file or the json files it is based on do not exist or exceeded time to live
         if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
