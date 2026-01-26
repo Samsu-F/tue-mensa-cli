@@ -167,7 +167,7 @@ mensa_columns=(
     function mensa()
     {
         emulate -L zsh; setopt localoptions no_unset # for reliability independent of which options are set
-        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated heading_morgenstelle heading_wilhelmstrasse heading_prinzkarl
+        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated heading_morgenstelle heading_wilhelmstrasse
         filters=("$@")
 
         # By setting a path here, you grant this function absolute freedom to create, edit, and delete any file in this directory and the directory itself.
@@ -181,7 +181,6 @@ mensa_columns=(
         file_final_tables="${mensa_dir}/final_tables_$(mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
         local file_morgenstelle="${mensa_dir}/json_morgenstelle_${mensa_date}"
         local file_wilhelmstrasse="${mensa_dir}/json_wilhelmstrasse_${mensa_date}"
-        local file_prinzkarl="${mensa_dir}/json_prinzkarl_${mensa_date}"
 
         # if the final file or the json files it is based on do not exist or exceeded time to live
         if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
@@ -191,7 +190,6 @@ mensa_columns=(
                 if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
                     curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621" > "${file_morgenstelle}" &
                     curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611" > "${file_wilhelmstrasse}" &
-                    curl -Ss "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/623" > "${file_prinzkarl}" &
 
                     # It is an intentional choice to not use a variable containing the filename prefix in the following glob, to ensure we
                     # never run 'rm /*' or something similarly bad, even if something went wrong and the variables contain the empty string.
@@ -204,25 +202,20 @@ mensa_columns=(
             {
                 mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
                 mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
-                mensa_json_to_table "623" "${mensa_date}" "${filters[@]}" <"${file_prinzkarl}"      >"${file_prinzkarl}.tmp" &
                 wait
 
                 if [ "${mensa_clickable_links}" = "true" ]; then
                     heading_morgenstelle="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/\033\\\\Morgenstelle\033]8;;\033\\\\\033[0m"
                     heading_wilhelmstrasse="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-wilhelmstrasse-tuebingen/\033\\\\Wilhelmstraße\033]8;;\033\\\\\033[0m"
-                    heading_prinzkarl="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-prinz-karl-tuebingen/\033\\\\Prinz Karl\033]8;;\033\\\\\033[0m"
                 else
                     heading_morgenstelle="\033[1mMorgenstelle\033[0m"
                     heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
-                    heading_prinzkarl="\033[1mPrinz Karl\033[0m"
                 fi
                 print " ${heading_morgenstelle}"
                 cat "${file_morgenstelle}.tmp"
                 print "\n ${heading_wilhelmstrasse}"
                 cat "${file_wilhelmstrasse}.tmp"
-                print "\n ${heading_prinzkarl}"
-                cat "${file_prinzkarl}.tmp"
-                rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp" "${file_prinzkarl}.tmp"
+                rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp"
             } | mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
 
