@@ -220,7 +220,9 @@ mensa_columns=(
                     heading_morgenstelle="\033[1mMorgenstelle\033[0m"
                     heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
                 fi
-                (( ! $curl_success )) && print '\033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time.\033[0m\n'
+                (( ! $curl_success )) && printf \
+                    ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
+                    "$(date -d "@$(mensa_file_mtime "${file_morgenstelle}")")"
                 print " ${heading_morgenstelle}"
                 cat "${file_morgenstelle}.tmp"
                 print "\n ${heading_wilhelmstrasse}"
