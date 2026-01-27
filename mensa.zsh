@@ -40,6 +40,9 @@
 
 ############################################## CONFIG ##############################################
 
+# the language to fetch the menu in. The stuwe website only provides de and en.
+mensa_lang=de
+
 # the color in which you want your favourite dishes highlighted:
 mensa_highlight_color_good="22;1;32" # 22 = bold off & faint off; 1 = bold; 32 = green
 # the color in which you want your bad dishes highlighted:
@@ -69,7 +72,7 @@ mensa_patterns_bad=(
     'Sesam.?[Kk]arotten.?[Ss]tick'
     '[A-Za-z\-]*[Kk]nusperbagel'
     '\[[SRFGLKW\/]+\]'                  # tags for all kinds of meat
-    '[Vv]eget(arische?[rs]?)?'
+    '[Vv]eget(ari[A-Za-z]+)?\b'
 )
 
 alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use a pager.
@@ -156,7 +159,7 @@ mensa_columns=(
             function mensa_date_tomorrow() { date -v+1d '+%Y-%m-%d'; }
             ;;
         *)
-            printf "\033[1;33mtue-mensa-cli: Warning: Unsupported OS '%s'. Defaulting to assuming GNU coreutils are available.\033[0m\n" "$(uname)" >&2
+            printf "\033[1;33mtue-mensa-cli: Warning: Unexpected OS '%s'. Defaulting to assuming GNU coreutils are available.\033[0m\n" "$(uname)" >&2
             function mensa_file_mtime() { stat -c %Y "$1"; }
             function mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
@@ -179,8 +182,8 @@ mensa_columns=(
         if [ "$(date '+%H%M')" -gt "1400" ]; then mensa_date="$(mensa_date_tomorrow)"; fi
 
         file_final_tables="${mensa_dir}/final_tables_$(mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
-        local file_morgenstelle="${mensa_dir}/morgenstelle.json"
-        local file_wilhelmstrasse="${mensa_dir}/wilhelmstrasse.json"
+        local file_morgenstelle="${mensa_dir}/morgenstelle_${mensa_lang}.json"
+        local file_wilhelmstrasse="${mensa_dir}/wilhelmstrasse_${mensa_lang}.json"
 
         # if the final file or the json files it is based on do not exist or exceeded time to live
         if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
@@ -188,8 +191,8 @@ mensa_columns=(
             local curl_pid_ms curl_pid_ws curl_success=1
             # only use curl if needed (if json files do not exist or are no longer valid)
             if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
-                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621" > "${file_morgenstelle}_curl.tmp"   & curl_pid_ms=$!
-                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611" > "${file_wilhelmstrasse}_curl.tmp" & curl_pid_ws=$!
+                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621?lang=${mensa_lang}" > "${file_morgenstelle}_curl.tmp"   & curl_pid_ms=$!
+                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611?lang=${mensa_lang}" > "${file_wilhelmstrasse}_curl.tmp" & curl_pid_ws=$!
                 wait $curl_pid_ms || curl_success=0
                 wait $curl_pid_ws || curl_success=0
                 if (( $curl_success )); then
@@ -243,6 +246,7 @@ mensa_columns=(
         local record_sep="$(printf '\036')"
         values+=(   # add everything that affects the content of the final table file
             "$(tput cols)"
+            "${mensa_lang}"
             "${mensa_highlight_color_good}"
             "${mensa_highlight_color_bad}"
             "${mensa_highlight_color_grid}"
@@ -291,62 +295,25 @@ mensa_columns=(
         local jq_column_selection="| { ${(j:, :)mensa_columns} }"
         if [[ ${#mensa_columns[@]} -eq 0 ]]; then jq_column_selection=""; fi # show every column if mensa_columns is empty
 
-        jq -r 'def allergen_map: {
-                    "Ei": "Ei",
-                    "Er": "Erdnüsse",
-                    "Fi": "Fisch",
-                    "Gl-a": "Gluten (Weizen)",
-                    "Gl-b": "Gluten (Roggen)",
-                    "Gl-c": "Gluten (Gerste)",
-                    "Gl-d": "Gluten (Hafer)",
-                    "Gl-e": "Gluten (Dinkel)",
-                    "Gl-f": "Gluten (Kamut)",
-                    "Gl": "Gluten",
-                    "Kr": "Krebstiere",
-                    "Lu": "Lupine",
-                    "ML": "Milch/Laktose",
-                    "Mu": "Weichtiere",
-                    "Nu-a": "Mandeln",
-                    "Nu-b": "Haselnüsse",
-                    "Nu-c": "Walnüsse",
-                    "Nu-d": "Cashewkerne",
-                    "Nu-e": "Pekannüsse",
-                    "Nu-f": "Paranüsse",
-                    "Nu-g": "Pistazien",
-                    "Nu-h": "Macadamianüsse",
-                    "Nu-i": "Queenslandnüsse",
-                    "Nu": "Schalenfrüchte (Nüsse)",
-                    "Sa":"Sesam",
-                    "Se": "Sellerie",
-                    "Sf": "Schwefeldioxid/Sulfite",
-                    "Sl": "Sesam",
-                    "Sn": "Senf",
-                    "So": "Soja",
-                    "We":"Weichtiere",
-                };
-                def additives_map: {
-                    "1": "Farbstoff",
-                    "2": "Konservierungsstoff",
-                    "3": "Nitritpökelsalz",
-                    "4": "Antioxidationsmittel",
-                    "5": "Geschmacksverstärker",
-                    "6": "geschwefelt",
-                    "7": "geschwärzt",
-                    "8": "gewachst",
-                    "9": "Süßungsmittel",
-                    "10": "enthält eine Phenylalaninquelle",
-                    "11": "Phosphat",
-                };
+        jq -r "$(mensa_jq_lookup_tables_def)"'
+                def excluded_menulines: [
+                    "Salad bar / vegetable buffet (price per 100g)",
+                    "Side dishes",
+                    "Side dishes (self-service)",
+                    "Desserts",
+                    "Desserts (self-service)",
+                    "Salat-/ Gemüsebuffet 100g",
+                    "Beilagen vorport.",
+                    "Beilagen SB",
+                    "Dessert vorport.",
+                    "Dessert SB"
+                ];
                 '"
                 [ .\"${mensa_id}\".menus[]
                     | del(.photo)
                     | select(.menuDate >= \"${mensa_date}\")
-                    | select(.menuLine != \"Salat-/ Gemüsebuffet 100g\")
-                    | select(.menuLine != \"Beilagen vorport.\")
+                    | select(.menuLine | IN(excluded_menulines[]) | not)
                     | .menu=(.menu | join(\", \"))
-                    | select(.menu != \"Frisches Obst\")
-                    | select(.menu != \"Dessertauswahltheke\")
-                    | select(.menu != \"Beilagenbuffet MM\")
                     | .icons=(.icons | join(\", \"))
                     | .filtersInclude=(.filtersInclude | join(\", \"))
                     | .meats=(.meats | join(\", \"))
@@ -368,6 +335,122 @@ mensa_columns=(
                 ]" \
             | if [ "${mensa_curry_to_haskell_easteregg}" = "true" ]; then sed 's/curry/haskell/g' | sed 's/Curry/Haskell/g'; else cat - ; fi \
             | jtbl -f --cols="$(tput cols)"
+    }
+
+
+
+    function mensa_jq_lookup_tables_def() {
+        local lang="${mensa_lang}"
+        if [[ "${lang}" != 'de' && "${lang}" != 'en' ]]; then
+            printf "Warning: invalid value '%s' for variable mensa_lang, please set it to either 'de' or 'en'.\n" "${mensa_lang}" >&2
+            if printf '%s\n' "${LC_ALL:-} ${LANG:-} ${LANGUAGE:-}" | grep -qE '(\b|:|_)de(\b|:|_)'; then
+                lang=de
+            else
+                lang=en
+            fi
+        fi
+        if  [[ "${lang}" == 'de' ]]; then
+            printf '%s' \
+                'def allergen_map: {
+                    "Ei":   "Ei",
+                    "Er":   "Erdnüsse",
+                    "Fi":   "Fisch",
+                    "Gl-a": "Gluten (Weizen)",
+                    "Gl-b": "Gluten (Roggen)",
+                    "Gl-c": "Gluten (Gerste)",
+                    "Gl-d": "Gluten (Hafer)",
+                    "Gl-e": "Gluten (Dinkel)",
+                    "Gl-f": "Gluten (Kamut)",
+                    "Gl":   "Gluten",
+                    "Kr":   "Krebstiere",
+                    "Lu":   "Lupine",
+                    "ML":   "Milch / Laktose",
+                    "Mu":   "Weichtiere",
+                    "Nu-a": "Mandeln",
+                    "Nu-b": "Haselnüsse",
+                    "Nu-c": "Walnüsse",
+                    "Nu-d": "Cashewkerne",
+                    "Nu-e": "Pekannüsse",
+                    "Nu-f": "Paranüsse",
+                    "Nu-g": "Pistazien",
+                    "Nu-h": "Macadamianüsse",
+                    "Nu-i": "Queenslandnüsse",
+                    "Nu":   "Schalenfrüchte (Nüsse)",
+                    "Sa":   "Sesam",
+                    "Se":   "Sellerie",
+                    "Sf":   "Schwefeldioxid / Sulfite",
+                    "Sl":   "Sesam",
+                    "Sn":   "Senf",
+                    "So":   "Soja",
+                    "We":   "Weichtiere",
+                };
+                def additives_map: {
+                    "1":  "Farbstoff",
+                    "2":  "Konservierungsstoff",
+                    "3":  "Nitritpökelsalz",
+                    "4":  "Antioxidationsmittel",
+                    "5":  "Geschmacksverstärker",
+                    "6":  "geschwefelt",
+                    "7":  "geschwärzt",
+                    "8":  "gewachst",
+                    "9":  "Süßungsmittel",
+                    "10": "enthält eine Phenylalaninquelle",
+                    "11": "Phosphat",
+                };'
+            return 0
+        fi
+        if [[ "${lang}" == 'en' ]]; then
+            printf '%s' \
+                'def allergen_map: {
+                    "Ei":   "egg",
+                    "Er":   "peanuts",
+                    "Fi":   "fish",
+                    "Gl-a": "gluten (wheat)",
+                    "Gl-b": "gluten (rye)",
+                    "Gl-c": "gluten (barley)",
+                    "Gl-d": "gluten (oats)",
+                    "Gl-e": "gluten (spelt)",
+                    "Gl-f": "gluten (kamut)",
+                    "Gl":   "gluten",
+                    "Kr":   "crustaceans",
+                    "Lu":   "lupin",
+                    "ML":   "milk / lactose",
+                    "Mu":   "molluscs",
+                    "Nu-a": "almonds",
+                    "Nu-b": "hazelnuts",
+                    "Nu-c": "walnuts",
+                    "Nu-d": "cashews",
+                    "Nu-e": "pecans",
+                    "Nu-f": "brazil nuts",
+                    "Nu-g": "pistachios",
+                    "Nu-h": "macadamia nuts",
+                    "Nu-i": "queensland nuts",
+                    "Nu":   "tree nuts",
+                    "Sa":   "sesame",
+                    "Se":   "celery",
+                    "Sf":   "sulphur dioxide / sulphites",
+                    "Sl":   "sesame",
+                    "Sn":   "mustard",
+                    "So":   "soy",
+                    "We":   "molluscs",
+                };
+                def additives_map: {
+                    "1":  "colouring",
+                    "2":  "preservative",
+                    "3":  "nitrite curing salt",
+                    "4":  "antioxidant",
+                    "5":  "flavour enhancer",
+                    "6":  "sulphurated",
+                    "7":  "blackened",
+                    "8":  "waxed",
+                    "9":  "sweetener",
+                    "10": "contains a source of phenylalanine",
+                    "11": "phosphate",
+                };'
+            return 0
+        fi
+        printf 'Error: function %s failed.\n' "${funcstack[1]}" >&2
+        return 1
     }
 
 

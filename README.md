@@ -1,6 +1,7 @@
 # tue-mensa-cli
 A customizable zsh function to view the meal plans of the Uni Tübingen refectories (Morgenstelle, Wilhelmstraße, and Prinz Karl) directly from your terminal.
 Features include regex filtering, paging, caching, an Easter egg, colorful highlighting of today's meals and known favorite/disliked dishes in customizable colors, and more.
+The meal plans can be shown in English or in German, see config options for more information.
 
 Both GNU Linux and macOS should be supported. In case it does not work on your system, please let me know.
 
