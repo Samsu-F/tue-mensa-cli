@@ -148,20 +148,20 @@ mensa_columns=(
         fi
     done
 
-    # mensa_file_mtime: a function to get the modification timestamp of a file
+    # _mensa_file_mtime: a function to get the modification timestamp of a file
     case "$(uname)" in
         Linux)
-            function mensa_file_mtime() { stat -c %Y "$1"; }
-            function mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
+            function _mensa_file_mtime() { stat -c %Y "$1"; }
+            function _mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
         Darwin|FreeBSD|OpenBSD|NetBSD|DragonFly)
-            function mensa_file_mtime() { stat -f %m "$1"; }
-            function mensa_date_tomorrow() { date -v+1d '+%Y-%m-%d'; }
+            function _mensa_file_mtime() { stat -f %m "$1"; }
+            function _mensa_date_tomorrow() { date -v+1d '+%Y-%m-%d'; }
             ;;
         *)
             printf "\033[1;33mtue-mensa-cli: Warning: Unexpected OS '%s'. Defaulting to assuming GNU coreutils are available.\033[0m\n" "$(uname)" >&2
-            function mensa_file_mtime() { stat -c %Y "$1"; }
-            function mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
+            function _mensa_file_mtime() { stat -c %Y "$1"; }
+            function _mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
     esac
 
@@ -179,18 +179,18 @@ mensa_columns=(
         mkdir -p "${mensa_dir}"
 
         mensa_date="$(date '+%Y-%m-%d')"
-        if [ "$(date '+%H%M')" -gt "1400" ]; then mensa_date="$(mensa_date_tomorrow)"; fi
+        if [ "$(date '+%H%M')" -gt "1400" ]; then mensa_date="$(_mensa_date_tomorrow)"; fi
 
-        file_final_tables="${mensa_dir}/final_tables_$(mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
+        file_final_tables="${mensa_dir}/final_tables_$(_mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
         local file_morgenstelle="${mensa_dir}/morgenstelle_${mensa_lang}.json"
         local file_wilhelmstrasse="${mensa_dir}/wilhelmstrasse_${mensa_lang}.json"
 
         # if the final file or the json files it is based on do not exist or exceeded time to live
-        if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
-        || [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
+        if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(_mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
+        || [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(_mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
             local curl_pid_ms curl_pid_ws curl_success=1
             # only use curl if needed (if json files do not exist or are no longer valid)
-            if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
+            if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(_mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
                 curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621?lang=${mensa_lang}" > "${file_morgenstelle}_curl.tmp"   & curl_pid_ms=$!
                 curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611?lang=${mensa_lang}" > "${file_wilhelmstrasse}_curl.tmp" & curl_pid_ws=$!
                 wait $curl_pid_ms || curl_success=0
@@ -212,8 +212,8 @@ mensa_columns=(
                 return 1
             fi
             {
-                mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
-                mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
+                _mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
+                _mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
                 wait
 
                 if [ "${mensa_clickable_links}" = "true" ]; then
@@ -225,13 +225,13 @@ mensa_columns=(
                 fi
                 (( ! $curl_success )) && printf \
                     ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
-                    "$(date -d "@$(mensa_file_mtime "${file_morgenstelle}")")"
+                    "$(date -d "@$(_mensa_file_mtime "${file_morgenstelle}")")"
                 print " ${heading_morgenstelle}"
                 cat "${file_morgenstelle}.tmp"
                 print "\n ${heading_wilhelmstrasse}"
                 cat "${file_wilhelmstrasse}.tmp"
                 rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp"
-            } | mensa_display "${mensa_date}" > "${file_final_tables}"
+            } | _mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
 
         cat "${file_final_tables}" | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
@@ -240,7 +240,7 @@ mensa_columns=(
 
 
     # generates a hash based on everything that affects the final tables, to be used like a unique id in the cache
-    function mensa_generate_file_suffix() {
+    function _mensa_generate_file_suffix() {
         local values=("$@")
         local unit_sep="$(printf '\037')"
         local record_sep="$(printf '\036')"
@@ -270,7 +270,7 @@ mensa_columns=(
 
 
 
-    function mensa_json_to_table()
+    function _mensa_json_to_table()
     {
         local mensa_id="$1"
         local mensa_date="$2"
@@ -295,7 +295,7 @@ mensa_columns=(
         local jq_column_selection="| { ${(j:, :)mensa_columns} }"
         if [[ ${#mensa_columns[@]} -eq 0 ]]; then jq_column_selection=""; fi # show every column if mensa_columns is empty
 
-        jq -r "$(mensa_jq_lookup_tables_def)"'
+        jq -r "$(_mensa_jq_lookup_tables_def)"'
                 def excluded_menulines: [
                     "Salad bar / vegetable buffet (price per 100g)",
                     "Side dishes",
@@ -339,7 +339,7 @@ mensa_columns=(
 
 
 
-    function mensa_jq_lookup_tables_def() {
+    function _mensa_jq_lookup_tables_def() {
         local lang="${mensa_lang}"
         if [[ "${lang}" != 'de' && "${lang}" != 'en' ]]; then
             printf "Warning: invalid value '%s' for variable mensa_lang, please set it to either 'de' or 'en'.\n" "${mensa_lang}" >&2
@@ -455,7 +455,7 @@ mensa_columns=(
 
 
 
-    function mensa_display()
+    function _mensa_display()
     {
         local mensa_date_iso mensa_date_formatted regex_good
         regex_good="(${(j:)|(:)mensa_patterns_good})"
@@ -464,16 +464,16 @@ mensa_columns=(
         # use jq to format to ensure the formatting is the same as in the table
         mensa_date_formatted="$(printf '%s' "${mensa_date_iso}" | jq -Rr "strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\")" )"
         sed -E "s/^.*$/$(printf '\033')[${mensa_base_color}m&$(printf '\033')[0m/" \
-        | mensa_highlight " .*${mensa_date_formatted}.* " "${mensa_highlight_color_today}" \
-        | mensa_highlight '[═├┼┤│─╤╧╪╒╕╞╡╘╛]+' "${mensa_highlight_color_grid}" \
-        | mensa_highlight "${regex_good}" "${mensa_highlight_color_good}" \
-        | mensa_highlight "${regex_bad}" "${mensa_highlight_color_bad}"
+        | _mensa_highlight " .*${mensa_date_formatted}.* " "${mensa_highlight_color_today}" \
+        | _mensa_highlight '[═├┼┤│─╤╧╪╒╕╞╡╘╛]+' "${mensa_highlight_color_grid}" \
+        | _mensa_highlight "${regex_good}" "${mensa_highlight_color_good}" \
+        | _mensa_highlight "${regex_bad}" "${mensa_highlight_color_bad}"
     }
 
 
 
     # # probably not that reliable but supports nested / overlapping highlighting
-    function mensa_highlight()
+    function _mensa_highlight()
     {
         local regex_pattern="$1"
         local color="$2"
