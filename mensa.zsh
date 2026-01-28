@@ -225,7 +225,7 @@ mensa_columns=(
                 fi
                 (( ! $curl_success )) && printf \
                     ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
-                    "$(date -d "@$(_mensa_file_mtime "${file_morgenstelle}")")"
+                    "$(_mensa_ago_string "$(_mensa_file_mtime "${file_morgenstelle}")")"
                 print " ${heading_morgenstelle}"
                 cat "${file_morgenstelle}.tmp"
                 print "\n ${heading_wilhelmstrasse}"
@@ -527,6 +527,35 @@ mensa_columns=(
 
                 print out
             }'
+    }
+
+
+
+    # given an epoch time stamp, format in a human readably string how long ago that was
+    # precision depends on the delta time, we do not care about the seconds if it was days ago
+    _mensa_ago_string() {
+        local delta="$(( EPOCHSECONDS - $1 ))"
+        local d="$(( delta / 86400 ))"
+        local h="$(( (delta % 86400) / 3600 ))"
+        local m="$(( (delta % 3600) / 60 ))"
+        local s="$(( delta % 60 ))"
+        (( delta < 0 )) && { printf 'in the future\n'; return 1; }
+
+        local d_unit='days' h_unit='hours' m_unit='minutes' s_unit='seconds'
+        (( d == 1 )) && d_unit='day'
+        (( h == 1 )) && h_unit='hour'
+        (( m == 1 )) && m_unit='minute'
+        (( s == 1 )) && s_unit='second'
+
+        if (( d > 0 )); then
+            printf '%s %s %s %s ago\n' "$d" "$d_unit" "$h" "$h_unit"
+        elif (( h > 0 )); then
+            printf '%s %s %s %s ago\n' "$h" "$h_unit" "$m" "$m_unit"
+        elif (( m > 0 )); then
+            printf '%s %s %s %s ago\n' "$m" "$m_unit" "$s" "$s_unit"
+        else
+            printf '%s %s ago\n' "$s" "$s_unit"
+        fi
     }
 
 }
