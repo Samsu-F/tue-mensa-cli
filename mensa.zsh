@@ -310,7 +310,6 @@ mensa_columns=(
                 ];
                 '"
                 [ .\"${mensa_id}\".menus[]
-                    | del(.photo)
                     | select(.menuDate >= \"${mensa_date}\")
                     | select(.menuLine | IN(excluded_menulines[]) | not)
                     | .menu=(.menu | join(\", \"))
