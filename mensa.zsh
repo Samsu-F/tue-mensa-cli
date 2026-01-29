@@ -80,7 +80,7 @@ alias mensa_pager='more -f' # Leave empty or use 'cat' if you don't want to use 
 
 mensa_date_format_string='%a %d.%m.' # see `man strftime` for a list of specifiers
 
-mensa_curry_to_haskell_easteregg=true
+mensa_curry_to_haskell_easteregg="$((RANDOM % 100 < 8))" # set to 0 for always off and to 1 for always on
 
 # Makes the heading of each table a clickable link. Disable if your terminal does not support this.
 mensa_clickable_links=true
@@ -333,7 +333,7 @@ mensa_columns=(
                     ${jq_column_selection}
                     ${jq_filters}
                 ]" \
-            | if [ "${mensa_curry_to_haskell_easteregg}" = "true" ]; then sed 's/curry/haskell/g' | sed 's/Curry/Haskell/g'; else cat - ; fi \
+            | if (( $mensa_curry_to_haskell_easteregg )); then sed 's/curry/haskell/g' | sed 's/Curry/Haskell/g'; else cat - ; fi \
             | jtbl -f --cols="$(tput cols)"
     }
 
