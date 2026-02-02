@@ -120,7 +120,8 @@ mensa_columns=(
 
 
 
-# Temporarily change options.
+# Temporarily change options. This cannot be put inside the big anonymous function, because we
+# need these options set while the anonymous function is parsed, not just while it runs.
 'builtin' 'local' '-a' 'mensa_zsh_options'
 [[ -o 'unset'           ]] && mensa_zsh_options+=('unset')
 [[ -o 'no_brace_expand' ]] && mensa_zsh_options+=('no_brace_expand')
@@ -131,6 +132,7 @@ mensa_columns=(
 # shellcheck disable=SC1073,SC1072
 () {
     emulate -L zsh
+    unset _mensa_source_return_status
 
 
     if [ -z "$ZSH_VERSION" ]; then
@@ -144,6 +146,8 @@ mensa_columns=(
     for cmd in jq jtbl curl grep sed awk openssl; do
         if ! command -pv "${cmd}" &>/dev/null; then
             printf "\033[1;31mtue-mensa-cli: Error: missing dependency '%s'.\033[0m\n" "${cmd}" >&2
+            local this_file_path="${(%):-%x}"
+            eval "function mensa() { source '${this_file_path}' && mensa \"\$@\"; }"
             return 1
         fi
     done
@@ -557,8 +561,10 @@ mensa_columns=(
         fi
     }
 
-}
+} || _mensa_source_return_status=$?
 
 # restore temporarily changed options
 (( ${#mensa_zsh_options} )) && setopt ${mensa_zsh_options[@]}
 'builtin' 'unset' 'mensa_zsh_options'
+
+'builtin' 'return' "${_mensa_source_return_status:-0}"
