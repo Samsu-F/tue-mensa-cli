@@ -111,6 +111,20 @@ mensa_columns=(
     co2
 )
 
+mensa_ids=(
+    621     # Mensa Morgenstelle
+    724     # Cafeteria Morgenstelle
+    611     # Mensa Wilhelmstraße
+    715     # Cafeteria Wilhelmstraße
+    # 623     # Mensa & Cafeteria Prinz Karl
+    # 661     # Mensa Hohenheim
+    # 630     # Mensa & Cafeteria Reutlingen
+    # 665     # Mensa & Cafeteria Nürtingen
+    # 640     # Mensa & Cafeteria Sigmaringen
+    # 645     # Mensa & Cafeteria Albstadt
+    # 655     # Mensa & Cafeteria Rottenburg
+)
+
 # Samsu's recommendation:
 # alias m='mensa vegan'
 
@@ -174,7 +188,7 @@ mensa_columns=(
     function mensa()
     {
         emulate -L zsh; setopt localoptions no_unset no_monitor # for reliability independent of which options are set
-        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated heading_morgenstelle heading_wilhelmstrasse
+        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated file i heading_morgenstelle heading_wilhelmstrasse
         filters=("$@")
 
         # By setting a path here, you grant this function absolute freedom to create, edit, and delete any file in this directory and the directory itself.
@@ -182,63 +196,125 @@ mensa_columns=(
         mensa_dir='/tmp/tue-mensa-cli'
         mkdir -p "${mensa_dir}"
 
-        mensa_date="$(date '+%Y-%m-%d')"
-        if [ "$(date '+%H%M')" -gt "1400" ]; then mensa_date="$(_mensa_date_tomorrow)"; fi
+        (( ${#mensa_ids} )) || { printf 'array mensa_ids is empty, nothing to do.\n' >&2; return 1; }
+
+        if [ "$(date '+%H%M')" -lt "1400" ]; then mensa_date="$(date '+%Y-%m-%d')"; else mensa_date="$(_mensa_date_tomorrow)"; fi
 
         file_final_tables="${mensa_dir}/final_tables_$(_mensa_generate_file_suffix "${filters[@]}" "${mensa_date}")"
-        local file_morgenstelle="${mensa_dir}/morgenstelle_${mensa_lang}.json"
-        local file_wilhelmstrasse="${mensa_dir}/wilhelmstrasse_${mensa_lang}.json"
+        local -a json_files=(${mensa_ids/#/${mensa_dir}/})  # add prefix
+        json_files=(${json_files/%/_${mensa_lang}.json})    # add suffix
 
         # if the final file or the json files it is based on do not exist or exceeded time to live
-        if [ ! -f "${file_final_tables}" ] || [ "$(($(date '+%s') - $(_mensa_file_mtime "${file_final_tables}") ))" -gt "${mensa_cache_time_to_live}" ] \
-        || [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(_mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
-            local curl_pid_ms curl_pid_ws curl_success=1
+        if ! _mensa_is_cache_still_valid "${file_final_tables}" "${json_files[@]}" ; then
+            local curl_success=1 pid
             # only use curl if needed (if json files do not exist or are no longer valid)
-            if [ ! -f "${file_morgenstelle}" ] || [ "$(($(date '+%s') - $(_mensa_file_mtime "${file_morgenstelle}") ))" -gt "${mensa_cache_time_to_live}" ]; then
-                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/621?lang=${mensa_lang}" > "${file_morgenstelle}_curl.tmp"   & curl_pid_ms=$!
-                curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/611?lang=${mensa_lang}" > "${file_wilhelmstrasse}_curl.tmp" & curl_pid_ws=$!
-                wait $curl_pid_ms || curl_success=0
-                wait $curl_pid_ws || curl_success=0
+            if ! _mensa_is_cache_still_valid "${json_files[@]}"; then
+                local -a curl_pids=()
+                for i in {1..${#mensa_ids}}; do
+                    curl -sf "http://www.my-stuwe.de/wp-json/mealplans/v1/canteens/${mensa_ids[$i]}?lang=${mensa_lang}" > "${json_files[$i]}_curl.tmp" & curl_pids+=($!)
+                done
+                for pid in ${curl_pids[@]}; do
+                    wait $pid || curl_success=0
+                done
+
                 if (( $curl_success )); then
-                    mv "${file_morgenstelle}_curl.tmp" "${file_morgenstelle}"
-                    mv "${file_wilhelmstrasse}_curl.tmp" "${file_wilhelmstrasse}"
+                    for file in ${json_files[@]}; do
+                        mv "${file}_curl.tmp" "${file}"
+                    done
                     # It is an intentional choice to not use a variable containing the filename prefix in the following glob, to ensure we
                     # never run 'rm /*' or something similarly bad, even if something went wrong and the variables contain the empty string.
                     local -a mensa_invalid_cache_files=( "${mensa_dir}/final_tables_"*(N) )
                     (( ${#mensa_invalid_cache_files} )) && rm --one-file-system "${mensa_invalid_cache_files[@]}"
                 else
-                    rm "${file_morgenstelle}_curl.tmp" "${file_wilhelmstrasse}_curl.tmp"
+                    for file in ${json_files[@]}; do
+                        rm "${file}_curl.tmp"
+                    done
                 fi
             fi
 
-            if [ ! -f "${file_morgenstelle}" ]; then
-                printf 'curl failed and there is noch cached data :(\nPlease check your internet connection.\n' >&2
-                return 1
-            fi
+            for file in ${json_files[@]}; do
+                if [ ! -f "${file}" ]; then
+                    printf 'curl failed and there is noch cached data :(\nPlease check your internet connection.\n' >&2
+                    return 1
+                fi
+            done
             {
-                _mensa_json_to_table "621" "${mensa_date}" "${filters[@]}" <"${file_morgenstelle}"   >"${file_morgenstelle}.tmp" &
-                _mensa_json_to_table "611" "${mensa_date}" "${filters[@]}" <"${file_wilhelmstrasse}" >"${file_wilhelmstrasse}.tmp" &
+                for i in {1..${#mensa_ids}}; do
+                    _mensa_json_to_table "${mensa_ids[$i]}" "${mensa_date}" "${filters[@]}" <"${json_files[$i]}" >"${json_files[$i]}.tmp" &
+                done
                 wait
 
-                if [ "${mensa_clickable_links}" = "true" ]; then
-                    heading_morgenstelle="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/\033\\\\Morgenstelle\033]8;;\033\\\\\033[0m"
-                    heading_wilhelmstrasse="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-wilhelmstrasse-tuebingen/\033\\\\Wilhelmstraße\033]8;;\033\\\\\033[0m"
-                else
-                    heading_morgenstelle="\033[1mMorgenstelle\033[0m"
-                    heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
-                fi
+                # if [ "${mensa_clickable_links}" = "true" ]; then
+                #     heading_morgenstelle="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/\033\\\\Morgenstelle\033]8;;\033\\\\\033[0m"
+                #     heading_wilhelmstrasse="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-wilhelmstrasse-tuebingen/\033\\\\Wilhelmstraße\033]8;;\033\\\\\033[0m"
+                # else
+                #     heading_morgenstelle="\033[1mMorgenstelle\033[0m"
+                #     heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
+                # fi
                 (( ! $curl_success )) && printf \
                     ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
                     "$(_mensa_ago_string "$(_mensa_file_mtime "${file_morgenstelle}")")"
-                print " ${heading_morgenstelle}"
-                cat "${file_morgenstelle}.tmp"
-                print "\n ${heading_wilhelmstrasse}"
-                cat "${file_wilhelmstrasse}.tmp"
-                rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp"
+                # print " ${heading_morgenstelle}"
+                # cat "${file_morgenstelle}.tmp"
+                # print "\n ${heading_wilhelmstrasse}"
+                # cat "${file_wilhelmstrasse}.tmp"
+
+                for i in {1..${#mensa_ids}}; do
+                    printf ' %s\n' "$(_mensa_id_to_heading ${mensa_ids[$i]})"
+                    cat "${json_files[$i]}.tmp"
+                    rm "${json_files[$i]}.tmp"
+                    (( i < ${#mensa_ids} )) && printf '\n'
+                done
+
+                # rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp"
             } | _mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
 
         cat "${file_final_tables}" | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
+    }
+
+
+
+    function _mensa_id_to_heading() {
+        if [ "${mensa_clickable_links}" = "true" ]; then
+            [[ "$1" = "611" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-wilhelmstrasse-tuebingen/\033\\\\Mensa Wilhelmstraße\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "621" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/\033\\\\Mensa Morgenstelle\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "623" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-prinz-karl-tuebingen/\033\\\\Mensa & Cafeteria Prinz Karl\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "661" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-hohenheim/\033\\\\Mensa Hohenheim\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "630" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-reutlingen/\033\\\\Mensa & Cafeteria Reutlingen\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "665" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-nuertingen/\033\\\\Mensa & Cafeteria Nürtingen\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "640" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-sigmaringen/\033\\\\Mensa & Cafeteria Sigmaringen\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "645" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-albstadt/\033\\\\Mensa & Cafeteria Albstadt\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "655" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-rottenburg/\033\\\\Mensa & Cafeteria Rottenburg\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "715" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/cafeteria-wilhelmstrasse-tuebingen/\033\\\\Cafeteria Wilhelmstraße\033]8;;\033\\\\\033[0m"  && return
+            [[ "$1" = "724" ]]  && print "\033[1m\033]8;;https://www.my-stuwe.de/mensa/cafeteria-morgenstelle-tuebingen/\033\\\\Cafeteria Morgenstelle\033]8;;\033\\\\\033[0m"  && return
+        else
+            [[ "$1" = "611" ]] && print "\033[1mMensa Wilhelmstraße\033[0m" && return
+            [[ "$1" = "621" ]] && print "\033[1mMensa Morgenstelle\033[0m" && return
+            [[ "$1" = "623" ]] && print "\033[1mMensa & Cafeteria Prinz Karl\033[0m" && return
+            [[ "$1" = "661" ]] && print "\033[1mMensa Hohenheim\033[0m" && return
+            [[ "$1" = "630" ]] && print "\033[1mMensa & Cafeteria Reutlingen\033[0m" && return
+            [[ "$1" = "665" ]] && print "\033[1mMensa & Cafeteria Nürtingen\033[0m" && return
+            [[ "$1" = "640" ]] && print "\033[1mMensa & Cafeteria Sigmaringen\033[0m" && return
+            [[ "$1" = "645" ]] && print "\033[1mMensa & Cafeteria Albstadt\033[0m" && return
+            [[ "$1" = "655" ]] && print "\033[1mMensa & Cafeteria Rottenburg\033[0m" && return
+            [[ "$1" = "715" ]] && print "\033[1mCafeteria Wilhelmstraße\033[0m" && return
+            [[ "$1" = "724" ]] && print "\033[1mCafeteria Morgenstelle\033[0m" && return
+        fi
+        print "Unknown ID '$1'" && return
+    }
+
+
+
+    function _mensa_is_cache_still_valid() {
+        local file curr_epoch_time
+        curr_epoch_time="$(date '+%s')"
+        for file in "$@"; do
+            if [ ! -f "${file}" ] || (( (curr_epoch_time - $(_mensa_file_mtime "${file}")) > mensa_cache_time_to_live )); then
+                return 1    # fail
+            fi
+        done
+        return 0    # all valid
     }
 
 
@@ -260,6 +336,7 @@ mensa_columns=(
             "${mensa_curry_to_haskell_easteregg}"
             "${mensa_clickable_links}"
             # use a Record Separator ASCII character to mark border between arrays
+            "${record_sep}${mensa_ids[@]}"
             "${record_sep}${mensa_patterns_good[@]}"
             "${record_sep}${mensa_patterns_bad[@]}"
             "${record_sep}${mensa_columns[@]}"
