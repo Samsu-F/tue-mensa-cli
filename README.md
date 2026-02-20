@@ -3,6 +3,19 @@ A customizable zsh function to view the meal plans of the Uni Tübingen refector
 Features include regex filtering, paging, caching, an Easter egg, colorful highlighting of today's meals and known favorite/disliked dishes in customizable colors, and more.
 The meal plans can be shown in English or in German, see config options for more information.
 
+All facilities with a published meal plan on the my-stuwe.de website are supported. As of February 2026, these are:
+- Mensa Morgenstelle
+- Cafeteria Morgenstelle
+- Mensa Wilhelmstraße
+- Cafeteria Wilhelmstraße
+- Mensa & Cafeteria Prinz Karl
+- Mensa Hohenheim
+- Mensa & Cafeteria Reutlingen
+- Mensa & Cafeteria Nürtingen
+- Mensa & Cafeteria Sigmaringen
+- Mensa & Cafeteria Albstadt
+- Mensa & Cafeteria Rottenburg
+
 Both GNU Linux and macOS should be supported. In case it does not work on your system, please let me know.
 
 
