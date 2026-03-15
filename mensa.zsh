@@ -145,7 +145,7 @@ mensa_ids=(
 
 # shellcheck disable=SC1073,SC1072
 () {
-    emulate -L zsh
+    emulate -L zsh; setopt localoptions no_unset no_monitor warncreateglobal
     unset _mensa_source_return_status
 
 
@@ -187,7 +187,7 @@ mensa_ids=(
 
     function mensa()
     {
-        emulate -L zsh; setopt localoptions no_unset no_monitor # for reliability independent of which options are set
+        emulate -L zsh; setopt localoptions no_unset no_monitor warncreateglobal # for reliability independent of which options are set
         local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated file i
         filters=("$@")
 
@@ -234,7 +234,7 @@ mensa_ids=(
 
             for file in ${json_files[@]}; do
                 if [ ! -f "${file}" ]; then
-                    printf 'curl failed and there is noch cached data :(\nPlease check your internet connection.\n' >&2
+                    printf 'curl failed and there is no cached data :(\nPlease check your internet connection.\n' >&2
                     return 1
                 fi
             done
