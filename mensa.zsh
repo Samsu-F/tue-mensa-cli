@@ -238,15 +238,16 @@ mensa_ids=(
                     return 1
                 fi
             done
+
+            (( ! $curl_success )) && printf \
+                ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
+                "$(_mensa_ago_string "$(_mensa_file_mtime "${json_files[@]}" | sort -n | head -n1)")"
+
             {
                 for i in {1..${#mensa_ids}}; do
                     _mensa_json_to_table "${mensa_ids[$i]}" "${mensa_date}" "${filters[@]}" <"${json_files[$i]}" >"${json_files[$i]}.tmp" &
                 done
                 wait
-
-                (( ! $curl_success )) && printf \
-                    ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
-                    "$(_mensa_ago_string "$(_mensa_file_mtime "${json_files[@]}" | sort -n | head -n1)")"
 
                 for i in {1..${#mensa_ids}}; do
                     printf ' %s\n' "$(_mensa_id_to_heading ${mensa_ids[$i]})"
