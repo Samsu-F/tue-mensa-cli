@@ -526,10 +526,10 @@ mensa_ids=(
 
     function _mensa_display()
     {
-        local mensa_date_iso mensa_date_formatted regex_good
-        regex_good="(${(j:)|(:)mensa_patterns_good})"
-        regex_bad="(${(j:)|(:)mensa_patterns_bad})"
-        mensa_date_iso="$1"
+        local mensa_date_iso="$1"
+        local regex_good="(${(j:)|(:)mensa_patterns_good})"
+        local regex_bad="(${(j:)|(:)mensa_patterns_bad})"
+        local mensa_date_formatted
         # use jq to format to ensure the formatting is the same as in the table
         mensa_date_formatted="$(printf '%s' "${mensa_date_iso}" | jq -Rr "strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\")" )"
         sed -E "s/^.*$/$(printf '\033')[${mensa_base_color}m&$(printf '\033')[0m/" \
