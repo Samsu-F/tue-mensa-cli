@@ -102,7 +102,7 @@ mensa_columns=(
     # meats
     # icons
     # filtersInclude
-    #  allergens        # ⚠️ WARNING: Allergen and additive info shown here is only a preview.
+    # allergens         # ⚠️ WARNING: Allergen and additive info shown here is only a preview.
                         # Only the daily labels at the Mensa (on-site monitors or notices) are
                         # official, and even those are not always reliable.
     # longAllergens
@@ -169,16 +169,16 @@ mensa_ids=(
     # _mensa_file_mtime: a function to get the modification timestamp of a file
     case "$(uname)" in
         Linux)
-            function _mensa_file_mtime() { stat -c %Y "$1"; }
+            function _mensa_file_mtime() { stat -c %Y "$@"; }
             function _mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
         Darwin|FreeBSD|OpenBSD|NetBSD|DragonFly)
-            function _mensa_file_mtime() { stat -f %m "$1"; }
+            function _mensa_file_mtime() { stat -f %m "$@"; }
             function _mensa_date_tomorrow() { date -v+1d '+%Y-%m-%d'; }
             ;;
         *)
             printf "\033[1;33mtue-mensa-cli: Warning: Unexpected OS '%s'. Defaulting to assuming GNU coreutils are available.\033[0m\n" "$(uname)" >&2
-            function _mensa_file_mtime() { stat -c %Y "$1"; }
+            function _mensa_file_mtime() { stat -c %Y "$@"; }
             function _mensa_date_tomorrow() { date --date=tomorrow '+%Y-%m-%d'; }
             ;;
     esac
@@ -188,7 +188,7 @@ mensa_ids=(
     function mensa()
     {
         emulate -L zsh; setopt localoptions no_unset no_monitor # for reliability independent of which options are set
-        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated file i heading_morgenstelle heading_wilhelmstrasse
+        local filters mensa_date file_suffix file_final_tables mensa_dir filters_concatenated file i
         filters=("$@")
 
         # By setting a path here, you grant this function absolute freedom to create, edit, and delete any file in this directory and the directory itself.
@@ -244,20 +244,9 @@ mensa_ids=(
                 done
                 wait
 
-                # if [ "${mensa_clickable_links}" = "true" ]; then
-                #     heading_morgenstelle="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-morgenstelle-tuebingen/\033\\\\Morgenstelle\033]8;;\033\\\\\033[0m"
-                #     heading_wilhelmstrasse="\033[1m\033]8;;https://www.my-stuwe.de/mensa/mensa-wilhelmstrasse-tuebingen/\033\\\\Wilhelmstraße\033]8;;\033\\\\\033[0m"
-                # else
-                #     heading_morgenstelle="\033[1mMorgenstelle\033[0m"
-                #     heading_wilhelmstrasse="\033[1mWilhelmstraße\033[0m"
-                # fi
                 (( ! $curl_success )) && printf \
                     ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
-                    "$(_mensa_ago_string "$(_mensa_file_mtime "${file_morgenstelle}")")"
-                # print " ${heading_morgenstelle}"
-                # cat "${file_morgenstelle}.tmp"
-                # print "\n ${heading_wilhelmstrasse}"
-                # cat "${file_wilhelmstrasse}.tmp"
+                    "$(_mensa_ago_string "$(_mensa_file_mtime "${json_files[@]}" | sort -n | head -n1)")"
 
                 for i in {1..${#mensa_ids}}; do
                     printf ' %s\n' "$(_mensa_id_to_heading ${mensa_ids[$i]})"
@@ -266,7 +255,6 @@ mensa_ids=(
                     (( i < ${#mensa_ids} )) && printf '\n'
                 done
 
-                # rm "${file_morgenstelle}.tmp" "${file_wilhelmstrasse}.tmp"
             } | _mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
 
@@ -301,7 +289,7 @@ mensa_ids=(
             [[ "$1" = "715" ]] && print "\033[1mCafeteria Wilhelmstraße\033[0m" && return
             [[ "$1" = "724" ]] && print "\033[1mCafeteria Morgenstelle\033[0m" && return
         fi
-        print "Unknown ID '$1'" && return
+        print "Unknown ID '$1'" && return 1
     }
 
 
