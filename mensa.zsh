@@ -603,7 +603,7 @@ mensa_ids=(
     # given an epoch time stamp, format in a human readably string how long ago that was
     # precision depends on the delta time, we do not care about the seconds if it was days ago
     _mensa_ago_string() {
-        local delta="$(( EPOCHSECONDS - $1 ))"
+        local delta="$(( $(date +%s) - $1 ))"
         local d="$(( delta / 86400 ))"
         local h="$(( (delta % 86400) / 3600 ))"
         local m="$(( (delta % 3600) / 60 ))"
