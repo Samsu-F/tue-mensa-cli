@@ -58,7 +58,7 @@ mensa_base_color="22;39" # 39 = default text color of your terminal
 # WARNING: literal forward slashes must be escaped!
 mensa_patterns_good=(
     'Hack.?([Bb]äll[a-z]+|[Rr]olle)'    # matches 'Hackbällchen', 'Hack-Bälle', 'Hack Rolle', ...
-    '([Ff]rikadelle.*[Vv]egan\]?)|([Vv]egan.*[Ff]rikadelle)'
+    '([Ff]rikadelle.*[Vv]egan\]?)|([Vv]egane [Ff]rikadelle)'
     '([Tt]s|[Tt]z|[Zz])a(ts|tz|z)iki'   # Tzatziki in all spellings imaginable
     '[A-Za-z]*[Dd]ip\b'                 # controversial, I know
     '((Soja.)?|[A-Za-z]*)[Gg]yros'      # 'Soja-Gyros', 'Pfannengyros', ...
@@ -538,9 +538,9 @@ mensa_ids=(
         mensa_date_formatted="$(printf '%s' "${mensa_date_iso}" | jq -Rr "strptime(\"%Y-%m-%d\") | strftime(\"${mensa_date_format_string}\")" )"
         sed -E "s/^.*$/$(printf '\033')[${mensa_base_color}m&$(printf '\033')[0m/" \
         | _mensa_highlight " .*${mensa_date_formatted}.* " "${mensa_highlight_color_today}" \
-        | _mensa_highlight '[═├┼┤│─╤╧╪╒╕╞╡╘╛]+' "${mensa_highlight_color_grid}" \
         | _mensa_highlight "${regex_good}" "${mensa_highlight_color_good}" \
-        | _mensa_highlight "${regex_bad}" "${mensa_highlight_color_bad}"
+        | _mensa_highlight "${regex_bad}" "${mensa_highlight_color_bad}" \
+        | _mensa_highlight '[═├┼┤│─╤╧╪╒╕╞╡╘╛]+' "${mensa_highlight_color_grid}"
     }
 
 
