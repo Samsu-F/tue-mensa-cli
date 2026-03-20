@@ -238,10 +238,7 @@ mensa_ids=(
                     return 1
                 fi
             done
-
-            (( ! $curl_success )) && printf \
-                ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
-                "$(_mensa_ago_string "$(_mensa_file_mtime "${json_files[@]}" | sort -n | head -n1)")"
+            # in case curl failure and existing but expired cached data, the warning is printed below to be included in the pager
 
             {
                 for i in {1..${#mensa_ids}}; do
@@ -259,7 +256,14 @@ mensa_ids=(
             } | _mensa_display "${mensa_date}" > "${file_final_tables}"
         fi
 
-        cat "${file_final_tables}" | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
+        {
+            if (( ${+curl_success} )) && (( ! $curl_success )); then
+                printf ' \033[1;33mWarning: Unable to retrieve new data. Using cached data past its expiration time (last updated %s).\033[0m\n' \
+                       "$(_mensa_ago_string "$(_mensa_file_mtime "${json_files[@]}" | sort -n | head -n1)")"
+            fi
+
+            cat "${file_final_tables}"
+        } | eval "${aliases[mensa_pager]:-cat}" # alias for an optional pager or cat
     }
 
 
